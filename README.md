@@ -49,7 +49,7 @@ python code/02_make_returns_from_prices.py
 python code/03_risk_metrics.py
 python code/04_var_cvar.py
 python code/05_stress_test.py
-Outputs 
+Outputs (what to look at)
 data/risk_summary.csv — annualized return/vol, max drawdown
 
 data/var_cvar_summary.csv — VaR/CVaR at 95%/99% (hist + parametric)
