@@ -17,3 +17,4 @@ venv/
 # raw data (keep results, ignore raw)
 data/prices.csv
 data/prices_clean.csv
+*.save
