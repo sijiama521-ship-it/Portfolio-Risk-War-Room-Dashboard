@@ -18,3 +18,4 @@ venv/
 data/prices.csv
 data/prices_clean.csv
 *.save
+_backup_local_images/

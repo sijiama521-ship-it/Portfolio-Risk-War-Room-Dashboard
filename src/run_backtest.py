@@ -2,20 +2,15 @@ import os
 import math
 import pandas as pd
 import numpy as np
-import yaml
 from scipy.stats import chi2
 
 
-def load_config(path: str) -> dict:
-    with open(path, "r") as f:
-        return yaml.safe_load(f)
-
-
 def kupiec_pof_test(breaches: int, n: int, alpha: float) -> float:
+    """Kupiec POF test p-value."""
     if n <= 0:
         return float("nan")
 
-    x = breaches
+    x = int(breaches)
     eps = 1e-12
     phat = max(min(x / n, 1 - eps), eps)
     p = max(min(alpha, 1 - eps), eps)
@@ -29,51 +24,50 @@ def kupiec_pof_test(breaches: int, n: int, alpha: float) -> float:
 
 def main():
     returns_path = "data/portfolio_returns.csv"
-    var_path = "data/var_cvar_summary.csv"
+    backtest_path = "data/var_backtest.csv"
 
-    if not os.path.exists(returns_path):
-        raise FileNotFoundError(f"Missing {returns_path}. Run your pipeline first.")
-    if not os.path.exists(var_path):
-        raise FileNotFoundError(f"Missing {var_path}. Run your pipeline first.")
+    rets = pd.read_csv(returns_path)
+    n = int(rets.shape[0])
 
-    rets = pd.read_csv(returns_path, parse_dates=["Date"])
-    var = pd.read_csv(var_path, parse_dates=["Date"])
+    bt = pd.read_csv(backtest_path)
 
-    returns_col = [c for c in rets.columns if c.lower() != "date" and "return" in c.lower()]
-    if not returns_col:
-        raise ValueError("Cannot find return column in data/portfolio_returns.csv")
-    returns_col = returns_col[0]
-
-    df = rets[["Date", returns_col]].merge(var, on="Date", how="inner").dropna()
-
-    alphas = [0.05, 0.01]
+    if "confidence" not in bt.columns or "breaches" not in bt.columns:
+        raise ValueError(f"Unexpected columns in {backtest_path}: {list(bt.columns)}")
 
     rows = []
-    for alpha in alphas:
-        level = int((1 - alpha) * 100)
-        candidates = [c for c in df.columns if "var" in c.lower() and (str(level) in c.lower() or str(alpha) in c.lower())]
-        if not candidates:
-            raise ValueError(f"Cannot find VaR column for alpha={alpha}. Columns: {list(df.columns)}")
-            var_col = candidates[0]
+    for _, r in bt.iterrows():
+        raw_conf = r["confidence"]
+        if isinstance(raw_conf, str) and raw_conf.strip().endswith("%"):
+            conf = float(raw_conf.strip().replace("%","")) / 100.0
+        else:
+            conf = float(raw_conf)
+            if conf > 1:
+                conf = conf / 100.0
+        alpha = 1.0 - conf
+        breaches = int(r["breaches"])
+        breach_rate = float(r["breach_rate"]) if "breach_rate" in bt.columns else breaches / n
+        expected = float(r["expected"]) if "expected" in bt.columns else alpha * n
 
-
-        breaches = int((df[returns_col] < df[var_col]).sum())
-        n = int(df.shape[0])
         pval = kupiec_pof_test(breaches, n, alpha)
 
         rows.append({
-            "method": var_col,
+            "confidence": conf,
             "alpha": alpha,
             "N": n,
             "breaches": breaches,
-            "breach_rate": breaches / n if n else float("nan"),
+            "breach_rate": breach_rate,
+            "expected_breaches": expected,
             "kupiec_pvalue": pval,
             "pass_0.05": (pval > 0.05) if not np.isnan(pval) else False
         })
 
-    out = pd.DataFrame(rows)
+    out = pd.DataFrame(rows).sort_values(by="confidence", ascending=False)
+
     os.makedirs("outputs/tables", exist_ok=True)
-    out.to_csv("outputs/tables/var_backtest_summary.csv", index=False)
+    out_path = "outputs/tables/var_backtest_kupiec.csv"
+    out.to_csv(out_path, index=False)
+
+    print(f"Saved: {out_path}")
     print(out)
 
 
