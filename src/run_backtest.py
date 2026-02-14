@@ -29,7 +29,7 @@ def kupiec_pof_test(breaches: int, n: int, alpha: float) -> float:
 
 def main():
     returns_path = "data/portfolio_returns.csv"
-    var_path = "data/var_results.csv"
+    var_path = "data/var_cvar_summary.csv"
 
     if not os.path.exists(returns_path):
         raise FileNotFoundError(f"Missing {returns_path}. Run your pipeline first.")
@@ -51,12 +51,11 @@ def main():
     rows = []
     for alpha in alphas:
         level = int((1 - alpha) * 100)
-
-        candidates = [c for c in df.columns if "var" in c.lower() and str(level) in c]
+        candidates = [c for c in df.columns if "var" in c.lower() and (str(level) in c.lower() or str(alpha) in c.lower())]
         if not candidates:
-            raise ValueError(f"Cannot find VaR column for {level}% in data/var_results.csv")
+            raise ValueError(f"Cannot find VaR column for alpha={alpha}. Columns: {list(df.columns)}")
+            var_col = candidates[0]
 
-        var_col = candidates[0]
 
         breaches = int((df[returns_col] < df[var_col]).sum())
         n = int(df.shape[0])
