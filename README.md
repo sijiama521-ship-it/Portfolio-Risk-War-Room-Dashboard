@@ -10,6 +10,19 @@ It ingests historical prices, builds daily returns, computes core risk metrics, 
 - **Stress tests** the portfolio with realistic “shock” scenarios (equities down, bonds down, gold up)
 - Outputs clean **CSVs + figures** you can drop into a report
 
+## VaR Backtest (Kupiec POF)
+
+**What this shows:**
+- If the model is calibrated, the actual breach rate should be close to the expected rate (alpha).
+- Kupiec p-values > 0.05 generally mean the VaR model passes the POF test.
+
+### Actual vs Expected Breach Rate
+![VaR breach rate](images/var_backtest_breach_rate.png)
+
+### Kupiec POF Test p-values
+![Kupiec p-values](images/kupiec_pvalues.png)
+
+
 ## Portfolio setup
 Example tickers:
 - XIU, VFV, XEF, ZAG, GLD, RY
