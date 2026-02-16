@@ -1,0 +1,4 @@
+scenario_name,start_date,end_date,n_days_in_window,portfolio_return_over_window,max_drawdown_over_window,worst_day_in_window,worst_day_return,top_3_contributors_on_worst_day
+Worst 20D Window (in-sample),2025-03-12,2025-04-08,20,-0.060700131082653486,-0.08649257644310848,2025-04-04,-0.0343535774510685,"XIU:-1.10%, VFV:-1.00%, XEF:-0.84%"
+Worst 60D Window (in-sample),2025-01-14,2025-04-07,58,-0.043478236509394974,-0.08823278467174822,2025-04-04,-0.0343535774510685,"XIU:-1.10%, VFV:-1.00%, XEF:-0.84%"
+Worst Day Context (±10d),2025-03-25,2025-04-15,16,-0.032977388012044306,-0.08649257644310848,2025-04-04,-0.0343535774510685,"XIU:-1.10%, VFV:-1.00%, XEF:-0.84%"
