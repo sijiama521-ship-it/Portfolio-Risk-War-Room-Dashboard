@@ -18,7 +18,7 @@ Key performance / risk metrics (from `data/risk_summary.csv`):
 
 ## 2) VaR model comparison (Hist vs Normal vs EWMA)
 
-![VaR Comparison](../outputs/figures/var_compare.png)
+![VaR Comparison](outputs/figures/var_compare.png)
 
 ## 3) VaR backtest results
 
@@ -38,9 +38,9 @@ Kupiec test results:
 | 0.95 | 0.05 | 390 | 20 | 0.0512821 | 0.05 | 0.907887 | True |
 
 
-![Kupiec p-values](../outputs/figures/kupiec_pvalues.png)
+![Kupiec p-values](outputs/figures/kupiec_pvalues.png)
 
-![Breach rate](../outputs/figures/var_backtest_breach_rate.png)
+![Breach rate](outputs/figures/var_backtest_breach_rate.png)
 
 ## 4) Historical stress scenarios
 
@@ -67,4 +67,4 @@ Risk contribution table:
 | ZAG | 0.2 | 0.0516209 | 0.0999083 | 2.16746 |
 
 
-![Top risk contributors](../outputs/figures/top_risk_contributors.png)
+![Top risk contributors](outputs/figures/top_risk_contributors.png)
