@@ -1,79 +1,68 @@
-# Portfolio Risk War Room (Python)
+## Portfolio Risk War Room Dashboard
 
-A mini risk dashboard for a multi-asset ETF portfolio.  
-It ingests historical prices, builds daily returns, computes core risk metrics, estimates VaR/CVaR (Historical + Parametric), and runs simple stress scenarios (“what-if shocks”) to show how tail risk changes under risk-off conditions.
+A lightweight **Streamlit** dashboard for monitoring portfolio risk and performance: **VaR models (Historical / Normal / EWMA)**, **backtesting**, **historical stress scenarios**, and **risk contribution**.
 
-## What this project does (plain language)
-- **Turns prices into returns** (daily % changes used for risk)
-- **Summarizes risk** (annualized return/volatility, max drawdown, correlations)
-- **Measures tail loss** with **VaR / CVaR** at **95% and 99%**
-- **Stress tests** the portfolio with realistic “shock” scenarios (equities down, bonds down, gold up)
-- Outputs clean **CSVs + figures** you can drop into a report
+ **Live Demo:** https://portfolio-risk-war-room-dashboard-5w64nrwwtzipewmgzbzyxn.streamlit.app/
 
-## VaR Backtest (Kupiec POF)
+---
 
-**What this shows:**
-- If the model is calibrated, the actual breach rate should be close to the expected rate (alpha).
-- Kupiec p-values > 0.05 generally mean the VaR model passes the POF test.
+## What this app does
 
-### Actual vs Expected Breach Rate
-![VaR breach rate](images/var_backtest_breach_rate.png)
+- **Portfolio overview & performance snapshot**
+  - Annualized return / volatility
+  - VaR / CVaR
+  - Max drawdown
+- **VaR model comparison**
+  - Compare **Historical vs Normal vs EWMA VaR**
+  - View VaR series outputs
+- **VaR backtesting**
+  - Breach counts / breach rate
+  - **Kupiec POF test** and **Christoffersen independence test**
+  - Summary tables + plots
+- **Historical stress scenarios**
+  - Worst window / worst day context (when generated)
+  - Scenario summary tables + charts
+- **Risk contribution**
+  - Volatility contribution by asset
+  - “Who drives portfolio risk?” ranking + plot
+- **Interactive portfolio weights**
+  - Adjust weights from the sidebar
+  - Normalize to sum to 1
+  - Save weights to `data/weights.csv`
+  - (Optional) regenerate outputs locally
 
-### Kupiec POF Test p-values
-![Kupiec p-values](images/kupiec_pvalues.png)
+---
 
+## Models included 
 
-## Portfolio setup
-Example tickers:
-- XIU, VFV, XEF, ZAG, GLD, RY
+- **Normal VaR:** assumes returns are normally distributed using mean/vol estimates.
+- **Historical VaR:** uses empirical quantiles of historical returns.
+- **EWMA VaR:** volatility estimated via exponentially weighted moving average.
 
-Weights:
-- Stored in `data/weights.csv` (must sum to 1.0)
+Backtests validate whether breaches match expected frequency and whether breaches are independent.
 
-## Project structure
-code/
-01_download_data*.py
-02_make_returns_from_prices.py
-03_risk_metrics.py
-04_var_cvar.py
-05_stress_test.py
-data/
-weights.csv
-returns.csv
-portfolio_returns.csv
-risk_summary.csv
-corr.csv
-var_cvar_summary.csv
-var_backtest.csv
-stress_test_summary.csv
-images/
-portfolio_nav.png
-portfolio_drawdown.png
-portfolio_rolling_vol_20d.png
-portfolio_returns_hist_var.png
-stress_test_hist_compare.png
+---
 
-## How to run
-From the project root:
+## Project structure (key files)
 
-```bash
-python code/01_download_data_yahoo_csv.py
-python code/02_make_returns_from_prices.py
-python code/03_risk_metrics.py
-python code/04_var_cvar.py
-python code/05_stress_test.py
-Outputs (what to look at)
-data/risk_summary.csv — annualized return/vol, max drawdown
+- `app.py` — Streamlit UI + visualization layer  
+- `src/` — analytics scripts (VaR series, EWMA, backtest tests, stress, risk contribution, report builder)
+- `scripts/run_all.sh` — runs the full pipeline and writes outputs
+- `data/weights.csv` — portfolio weights (editable)
+- `outputs/`
+  - `outputs/tables/` — generated CSV tables
+  - `outputs/figures/` — generated PNG charts
+- `report/REPORT.md` — auto-generated risk report (rendered inside the app)
 
-data/var_cvar_summary.csv — VaR/CVaR at 95%/99% (hist + parametric)
+---
 
-data/stress_test_summary.csv — stress scenarios vs base VaR/CVaR
+## Requirements
 
-images/ — charts used for reporting
+- Python **3.10+** recommended  
+- macOS / Windows / Linux
 
-## Run locally
+Install dependencies:
 
 ```bash
 pip install -r requirements.txt
-streamlit run app.py
 
