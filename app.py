@@ -138,9 +138,13 @@ st.divider()
 
 if show_var_compare:
     st.header("📉 VaR Model Comparison")
-    # image
-    show_png("var_compare.png", caption="VaR compare: Hist vs Normal vs EWMA (if available)")
-    # series tables (optional)
+
+    # ✅ Show VaR comparison figure (fix broken image in REPORT.md)
+    show_png(
+        "var_compare.png",
+        caption="VaR compare: Hist vs Normal vs EWMA (if available)"
+    )
+
     st.subheader("VaR Series Tables (if present)")
     cols = st.columns(3)
     with cols[0]:
