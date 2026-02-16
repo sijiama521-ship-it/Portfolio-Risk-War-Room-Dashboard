@@ -103,7 +103,25 @@ Overall, the VaR thresholds appear **well-calibrated** for this sample window.
 
 ---
 
-## 6) Practical Conclusions (What I would tell a PM)
+## 6） Historical Scenario Stress Test (Data-Driven)
+
+**Goal:** Replace “hand-waved shocks” with stress periods grounded in realized portfolio returns.
+
+**Data range:** 2024-07-09 to 2026-02-06 (390 trading days)
+
+**Key stress periods (in-sample):**
+- **Worst single day:** 2025-04-04, portfolio return = -3.44%
+- **Worst 20-trading-day window:** 2025-03-12 to 2025-04-08, cumulative return = TBD
+- **Worst 60-trading-day window:** 2025-01-14 to 2025-04-07, cumulative return = TBD
+
+**Largest contributors on the worst day (approx.):**
+- XIU: -1.10%
+- VFV: -1.00%
+- XEF: -0.84%
+
+**Output:** `outputs/tables/historical_scenarios.csv`
+
+## 7) Practical Conclusions 
 
 1. **Normal-day risk is summarized well by annualized volatility and drawdown**, and diversification can be inspected via the correlation matrix.
 2. **Tail risk is captured using VaR/CVaR at 95% and 99%.** CVaR is the more informative “bad day” metric.
@@ -112,7 +130,7 @@ Overall, the VaR thresholds appear **well-calibrated** for this sample window.
 
 ---
 
-## 7) Limitations & Next Steps
+## 8) Limitations & Next Steps
 
 ### Limitations
 - VaR assumes the future resembles the historical window used.
