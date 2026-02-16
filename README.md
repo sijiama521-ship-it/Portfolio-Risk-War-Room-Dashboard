@@ -70,3 +70,10 @@ data/var_cvar_summary.csv — VaR/CVaR at 95%/99% (hist + parametric)
 data/stress_test_summary.csv — stress scenarios vs base VaR/CVaR
 
 images/ — charts used for reporting
+
+## Run locally
+
+```bash
+pip install -r requirements.txt
+streamlit run app.py
+
