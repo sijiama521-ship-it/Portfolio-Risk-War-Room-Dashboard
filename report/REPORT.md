@@ -119,9 +119,29 @@ Overall, the VaR thresholds appear **well-calibrated** for this sample window.
 - VFV: -1.00%
 - XEF: -0.84%
 
-**Output:** `outputs/tables/historical_scenarios.csv`
+**Output:** `outputs/tables/historical_scenarios.csv
 
-## 7) Practical Conclusions 
+## 7） Risk Contribution (Volatility Contribution)
+
+In this step, I computed each asset’s contribution to total portfolio volatility using the portfolio weights and the asset return covariance matrix. The goal is to explain *where the portfolio risk is coming from*, not just how the weights are allocated.
+
+**Outputs generated:**
+- Table: `outputs/tables/risk_contribution.csv`
+- Figure: `outputs/figures/top_risk_contributors.png`
+
+### Key Results
+Based on the volatility contribution percentages:
+- The top contributors were **XIU (~30.88%)** and **VFV (~28.92%)**.
+- The next contributors were **XEF (~18.50%)** and **RY (~11.53%)**.
+- **ZAG (~2.17%)** contributed the least, indicating it provides diversification / lower volatility impact relative to its weight.
+
+### Interpretation
+Risk contribution depends on both **position size (weight)** and **risk structure (volatility + correlations)**. Even if two assets have similar weights, the one with higher volatility or stronger correlations with other risky assets can contribute more to total portfolio risk.
+
+![Top risk contributors](../outputs/figures/top_risk_contributors.png)
+
+
+## 8) Practical Conclusions 
 
 1. **Normal-day risk is summarized well by annualized volatility and drawdown**, and diversification can be inspected via the correlation matrix.
 2. **Tail risk is captured using VaR/CVaR at 95% and 99%.** CVaR is the more informative “bad day” metric.
@@ -130,7 +150,7 @@ Overall, the VaR thresholds appear **well-calibrated** for this sample window.
 
 ---
 
-## 8) Limitations & Next Steps
+## 9) Limitations & Next Steps
 
 ### Limitations
 - VaR assumes the future resembles the historical window used.
