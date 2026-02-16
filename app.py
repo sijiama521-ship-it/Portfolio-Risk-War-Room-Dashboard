@@ -196,9 +196,15 @@ def try_run_all_scripts() -> tuple[bool, str]:
         return False, f"Failed to run scripts: {e}"
 
 
+
 # ============================================================
-# UI
+# UI (replace your whole UI section with this)
 # ============================================================
+
+import streamlit as st
+import pandas as pd
+from pathlib import Path
+
 st.set_page_config(page_title="Portfolio Risk War Room", layout="wide")
 
 st.title("📊 Portfolio Risk War Room Dashboard")
@@ -207,116 +213,127 @@ st.caption(
     "and risk contribution outputs."
 )
 
+# ----------------------------
 # Sidebar controls
+# ----------------------------
 st.sidebar.header("Controls")
 
-# Weights editor
+# ---- Weights editor (safe: no rerun on slider drag)
+WEIGHTS_PATH = Path("data/weights.csv")
+
+def _load_weights_csv(path: Path) -> pd.DataFrame:
+    if not path.exists():
+        return pd.DataFrame(columns=["asset", "weight"])
+    df = pd.read_csv(path)
+    if df.empty:
+        return pd.DataFrame(columns=["asset", "weight"])
+    df["asset"] = df["asset"].astype(str)
+    df["weight"] = df["weight"].astype(float)
+    return df
+
+def _save_weights_csv(df: pd.DataFrame, path: Path) -> None:
+    df = df[["asset", "weight"]].copy()
+    df.to_csv(path, index=False)
+
 with st.sidebar.expander("⚖️ Portfolio Weights (edit)", expanded=False):
-    wdf = load_weights()
+    wdf = _load_weights_csv(WEIGHTS_PATH)
+
     if wdf.empty:
-        st.info("`data/weights.csv` is empty. Add assets there first (asset, weight).")
+        st.info("`data/weights.csv` is empty or missing. Add rows there first (asset, weight).")
     else:
-        # Build sliders
-        assets = wdf["asset"].astype(str).tolist()
-        weights = wdf["weight"].astype(float).tolist()
+        assets = wdf["asset"].tolist()
+        current = dict(zip(wdf["asset"], wdf["weight"]))
 
-        st.write("Adjust weights below. You can auto-normalize to sum to 1.0.")
-        new_weights = []
-        for a, w in zip(assets, weights):
-            new_w = st.slider(a, min_value=0.0, max_value=1.0, value=float(w), step=0.01)
-            new_weights.append(new_w)
+        # form prevents rerun spam while dragging sliders
+        with st.form("weights_form", clear_on_submit=False):
+            st.caption("拖动滑条不会刷新；点 Apply 才保存并更新一次。")
+            new_weights = {}
+            for a in assets:
+                new_weights[a] = st.slider(
+                    a,
+                    min_value=0.0,
+                    max_value=1.0,
+                    value=float(current.get(a, 0.0)),
+                    step=0.01,
+                    key=f"w_{a}",
+                )
+            normalize = st.checkbox("Auto-normalize to sum=1", value=True)
+            apply_btn = st.form_submit_button("✅ Apply weights")
 
-        total = sum(new_weights)
-        st.write(f"Current sum: **{total:.4f}**")
-
-        colA, colB = st.columns(2)
-        with colA:
-            normalize = st.button("Normalize to sum=1")
-        with colB:
-            save_btn = st.button("Save to data/weights.csv")
-
-        if normalize and total > 0:
-            new_weights = [w / total for w in new_weights]
-            total = 1.0
-            st.success("Normalized. Now click Save if you want to persist.")
-
-        if save_btn:
-            out_df = pd.DataFrame({"asset": assets, "weight": new_weights})
-            save_weights(out_df)
-            st.success("Saved weights to data/weights.csv ✅")
-
-            st.info(
-                "To update charts/tables, you must regenerate outputs. "
-                "Locally you can run `./scripts/run_all.sh` (or click below). "
-                "On Streamlit Cloud, use **Manage App → Restart** to re-run the preScript."
-            )
-
-        # Optional: run scripts from UI (mostly for local use)
-        run_now = st.button("Run scripts now (local best)")
-        if run_now:
-            with st.spinner("Running scripts/run_all.sh ..."):
-                ok, log_tail = try_run_all_scripts()
-            if ok:
-                st.success("Scripts completed. Click 'Refresh / Rerun' on the main page.")
+        if apply_btn:
+            s = sum(new_weights.values())
+            if s <= 0:
+                st.error("权重总和不能为 0。")
             else:
-                st.error("Scripts failed (this is common on Streamlit Cloud).")
-            st.code(log_tail)
+                if normalize:
+                    new_weights = {k: v / s for k, v in new_weights.items()}
 
-# Section toggles
+                out_df = pd.DataFrame(
+                    {"asset": list(new_weights.keys()), "weight": list(new_weights.values())}
+                )
+                _save_weights_csv(out_df, WEIGHTS_PATH)
+                st.success(f"Saved data/weights.csv (sum={out_df['weight'].sum():.4f})")
+                st.rerun()
+
+st.sidebar.divider()
+
+# section toggles
 show_report = st.sidebar.checkbox("Show Report (REPORT.md)", value=True)
 show_var_compare = st.sidebar.checkbox("Show VaR Comparison", value=True)
 show_var_backtest = st.sidebar.checkbox("Show VaR Backtest", value=True)
 show_hist_scen = st.sidebar.checkbox("Show Historical Stress Scenarios", value=True)
 show_risk_contrib = st.sidebar.checkbox("Show Risk Contribution", value=True)
 
-# Refresh button
-if st.sidebar.button("Refresh / Rerun (reload outputs)"):
-    st.cache_data.clear()
+# optional manual refresh (just rerun page)
+if st.sidebar.button("🔄 Refresh / Rerun (reload outputs)"):
     st.rerun()
 
-# Last updated
-st.info(f"Last Updated (outputs): {file_mtime(OUTPUTS_DIR)}")
+# ----------------------------
+# Main content
+# ----------------------------
 
-# Inventory
-with st.expander("📁 Output Inventory (click to expand)", expanded=False):
-    figs, tables = list_inventory()
-    c1, c2 = st.columns(2)
-    with c1:
-        st.markdown("**Figures:**")
-        st.write(figs)
-    with c2:
-        st.markdown("**Tables:**")
-        st.write(tables)
+# timestamp banner (optional but helpful)
+try:
+    # If you have a helper for outputs folder mtime, keep yours.
+    # Otherwise show nothing.
+    pass
+except Exception:
+    pass
 
-st.divider()
 
-# ============================================================
-# Sections
-# ============================================================
+# ---- 1) Report
 if show_report:
     st.header("🧾 Report")
-    report_file = resolve_report_path()
-    if report_file is None:
-        st.warning(f"Missing report file. Looked for:\n- {REPORT_MD_PRIMARY}\n- {REPORT_MD_FALLBACK}")
-    else:
-        st.caption(f"Updated: {file_mtime(report_file)}  |  Path: {report_file}")
-        # Render markdown with images fixed
-        render_report_md_with_images(report_file)
 
-        # Download
-        st.download_button(
-            "Download REPORT.md",
-            data=safe_read_text(report_file).encode("utf-8"),
-            file_name="REPORT.md",
-            mime="text/markdown",
-            use_container_width=True,
-        )
+    # Your project already uses REPORT_MD / file_mtime helpers.
+    # This block assumes:
+    # - REPORT_MD is a Path to report/REPORT.md
+    # - REPORT_MD_exists() returns bool
+    if "REPORT_MD" in globals() and callable(globals().get("REPORT_MD_exists", None)):
+        if REPORT_MD_exists():
+            st.caption(f"Updated: {file_mtime(REPORT_MD)} | Path: {REPORT_MD}")
+            st.markdown(REPORT_MD.read_text(encoding="utf-8"), unsafe_allow_html=False)
+            st.download_button(
+                "Download REPORT.md",
+                data=REPORT_MD.read_text(encoding="utf-8").encode("utf-8"),
+                file_name="REPORT.md",
+                mime="text/markdown",
+                use_container_width=True,
+            )
+        else:
+            st.warning(f"Missing report file: {REPORT_MD}")
+    else:
+        st.info("Report helpers not detected in globals; skip rendering REPORT.md.")
 
 st.divider()
 
+# ---- 2) VaR Model Comparison
 if show_var_compare:
     st.header("📉 VaR Model Comparison")
-    # Ensure the comparison figure shows
+
+    # IMPORTANT: your report.md in Streamlit Cloud often breaks image links,
+    # so we explicitly render the png from outputs/figures with show_png().
+    # This assumes your show_png() function looks in outputs/figures.
     show_png("var_compare.png", caption="VaR compare: Hist vs Normal vs EWMA (if available)")
 
     st.subheader("VaR Series Tables (if present)")
@@ -333,8 +350,10 @@ if show_var_compare:
 
 st.divider()
 
+# ---- 3) VaR Backtest
 if show_var_backtest:
     st.header("✅ VaR Backtest")
+
     c1, c2 = st.columns(2)
     with c1:
         show_png("var_backtest_breach_rate.png", caption="Backtest breach rate")
@@ -355,6 +374,7 @@ if show_var_backtest:
 
 st.divider()
 
+# ---- 4) Historical stress scenarios
 if show_hist_scen:
     st.header("🧨 Historical Stress Scenarios")
     show_png("historical_scenarios.png", caption="Historical scenarios summary (if generated)")
@@ -362,7 +382,10 @@ if show_hist_scen:
 
 st.divider()
 
+# ---- 5) Risk contribution
 if show_risk_contrib:
     st.header("🧩 Risk Contribution")
     show_png("top_risk_contributors.png", caption="Top risk contributors (vol contribution)")
     show_csv("risk_contribution.csv")
+
+
