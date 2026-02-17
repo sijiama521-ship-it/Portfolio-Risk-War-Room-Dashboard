@@ -1,7 +1,8 @@
 import os
+
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 
 RETURNS_PATH = "data/returns.csv"
 WEIGHTS_PATH = "data/weights.csv"
@@ -11,20 +12,26 @@ OUT_FIG = "outputs/figures/top_risk_contributors.png"
 
 ANNUALIZE = 252  # trading days
 
+
 def load_weights(path: str) -> pd.Series:
     wdf = pd.read_csv(path)
     # support common formats: (asset, weight) or columns with tickers as header
     if {"asset", "weight"}.issubset(set(map(str.lower, wdf.columns))):
         cols = {c.lower(): c for c in wdf.columns}
-        w = pd.Series(wdf[cols["weight"]].values, index=wdf[cols["asset"]].values, dtype=float)
+        w = pd.Series(
+            wdf[cols["weight"]].values, index=wdf[cols["asset"]].values, dtype=float
+        )
     else:
         # assume single-row weights with columns = tickers
         if len(wdf) != 1:
-            raise ValueError("weights.csv format not recognized. Use columns asset,weight OR single-row header=tickers.")
+            raise ValueError(
+                "weights.csv format not recognized. Use columns asset,weight OR single-row header=tickers."
+            )
         w = wdf.iloc[0].astype(float)
         w.index = w.index.astype(str)
     w = w / w.sum()
     return w
+
 
 def main():
     os.makedirs("outputs/tables", exist_ok=True)
@@ -74,13 +81,15 @@ def main():
     asset_vol = np.sqrt(np.diag(Sigma)) * np.sqrt(ANNUALIZE)
     port_vol_ann = port_vol * np.sqrt(ANNUALIZE)
 
-    out = pd.DataFrame({
-        "asset": asset_cols,
-        "weight": w.flatten(),
-        "asset_vol_ann": asset_vol,
-        "portfolio_vol_ann": [port_vol_ann] * len(asset_cols),
-        "vol_contribution_pct": vol_contrib_pct.flatten()
-    }).sort_values("vol_contribution_pct", ascending=False)
+    out = pd.DataFrame(
+        {
+            "asset": asset_cols,
+            "weight": w.flatten(),
+            "asset_vol_ann": asset_vol,
+            "portfolio_vol_ann": [port_vol_ann] * len(asset_cols),
+            "vol_contribution_pct": vol_contrib_pct.flatten(),
+        }
+    ).sort_values("vol_contribution_pct", ascending=False)
 
     out.to_csv(OUT_TABLE, index=False)
     print(f"Saved: {OUT_TABLE}")
@@ -96,6 +105,7 @@ def main():
     plt.tight_layout()
     plt.savefig(OUT_FIG, dpi=200)
     print(f"Saved: {OUT_FIG}")
+
 
 if __name__ == "__main__":
     main()

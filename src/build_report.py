@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-import pandas as pd
 
+import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -81,7 +81,9 @@ def main() -> None:
     # Compose markdown
     md = []
     md.append("# Portfolio Risk War Room — Risk Report\n")
-    md.append("This report is auto-generated from `outputs/tables` and `outputs/figures`.\n")
+    md.append(
+        "This report is auto-generated from `outputs/tables` and `outputs/figures`.\n"
+    )
 
     # 1) Portfolio overview / performance
     md.append(section("1) Portfolio overview & performance snapshot"))
@@ -112,7 +114,9 @@ def main() -> None:
     if fig_breach.exists():
         md.append(f"\n![Breach rate]({relpath_from_report(fig_breach)})\n")
     else:
-        md.append("\n_(missing figure: outputs/figures/var_backtest_breach_rate.png)_\n")
+        md.append(
+            "\n_(missing figure: outputs/figures/var_backtest_breach_rate.png)_\n"
+        )
 
     # 4) Stress scenarios
     md.append(section("4) Historical stress scenarios"))

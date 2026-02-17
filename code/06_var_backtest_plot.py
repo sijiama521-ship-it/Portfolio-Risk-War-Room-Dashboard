@@ -2,9 +2,10 @@
 # Plot returns + VaR line + breach points (VaR backtest visualization)
 
 from pathlib import Path
+
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 
 DATA_DIR = Path("data")
 IMG_DIR = Path("images")
@@ -41,8 +42,10 @@ for c in possible_return_cols:
         break
 
 if ret_col is None:
-    raise ValueError(f"Could not find a return column in {returns_path}. "
-                     f"Found columns: {list(df.columns)}")
+    raise ValueError(
+        f"Could not find a return column in {returns_path}. "
+        f"Found columns: {list(df.columns)}"
+    )
 
 # Parse dates if present
 date_col = None
@@ -102,9 +105,23 @@ plt.close()
 print("Saved: images/var_backtest_99.png")
 
 # ---- Save summary CSV (optional) ----
-summary = pd.DataFrame([
-    {"confidence": "95%", "VaR_threshold": q95, "breaches": int(breach95.sum()), "breach_rate": float(breach95.mean()), "expected": 0.05},
-    {"confidence": "99%", "VaR_threshold": q99, "breaches": int(breach99.sum()), "breach_rate": float(breach99.mean()), "expected": 0.01},
-])
+summary = pd.DataFrame(
+    [
+        {
+            "confidence": "95%",
+            "VaR_threshold": q95,
+            "breaches": int(breach95.sum()),
+            "breach_rate": float(breach95.mean()),
+            "expected": 0.05,
+        },
+        {
+            "confidence": "99%",
+            "VaR_threshold": q99,
+            "breaches": int(breach99.sum()),
+            "breach_rate": float(breach99.mean()),
+            "expected": 0.01,
+        },
+    ]
+)
 summary.to_csv(DATA_DIR / "var_backtest_summary.csv", index=False)
 print("Saved: data/var_backtest_summary.csv")

@@ -1,5 +1,7 @@
 import os
+
 import pandas as pd
+
 
 def main():
     # 1) load realized portfolio returns
@@ -27,6 +29,7 @@ def main():
     out.to_csv(out_path, index=False)
     print(f"Saved: {out_path}")
     print(out.tail(3))
+
 
 if __name__ == "__main__":
     main()

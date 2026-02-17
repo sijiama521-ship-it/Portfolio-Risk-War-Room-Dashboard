@@ -1,7 +1,8 @@
 import os
+
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 
 DATA_DIR = "data"
 IMG_DIR = "images"
@@ -9,7 +10,9 @@ os.makedirs(IMG_DIR, exist_ok=True)
 
 # ---------- Load ----------
 returns = pd.read_csv(f"{DATA_DIR}/returns.csv", parse_dates=["Date"]).set_index("Date")
-port = pd.read_csv(f"{DATA_DIR}/portfolio_returns.csv", parse_dates=["Date"]).set_index("Date")
+port = pd.read_csv(f"{DATA_DIR}/portfolio_returns.csv", parse_dates=["Date"]).set_index(
+    "Date"
+)
 
 # Ensure numeric
 returns = returns.apply(pd.to_numeric, errors="coerce")
@@ -22,19 +25,22 @@ port = df[["portfolio_return"]].loc[returns.index]
 
 TRADING_DAYS = 252
 
+
 def max_drawdown(r: pd.Series) -> float:
     nav = (1 + r).cumprod()
     peak = nav.cummax()
     dd = nav / peak - 1
     return float(dd.min())
 
+
 def hist_var_cvar(r: pd.Series, alpha: float = 0.05):
     r = r.dropna()
     if len(r) == 0:
         return np.nan, np.nan
-    var = np.quantile(r, alpha)              # e.g., 5% quantile (usually negative)
+    var = np.quantile(r, alpha)  # e.g., 5% quantile (usually negative)
     cvar = r[r <= var].mean() if (r <= var).any() else np.nan
     return float(var), float(cvar)
+
 
 def summarize_series(r: pd.Series, name: str) -> dict:
     mu_d = r.mean()
@@ -52,6 +58,7 @@ def summarize_series(r: pd.Series, name: str) -> dict:
         "CVaR_95_hist": cvar95,
         "max_drawdown": mdd,
     }
+
 
 # ---------- Risk summary ----------
 rows = []
@@ -107,4 +114,11 @@ plt.savefig(f"{IMG_DIR}/portfolio_rolling_vol_20d.png", dpi=200)
 plt.close()
 print("Saved: images/portfolio_rolling_vol_20d.png")
 
-print("Done. Date range:", returns.index.min(), "to", returns.index.max(), " | rows:", len(returns))
+print(
+    "Done. Date range:",
+    returns.index.min(),
+    "to",
+    returns.index.max(),
+    " | rows:",
+    len(returns),
+)

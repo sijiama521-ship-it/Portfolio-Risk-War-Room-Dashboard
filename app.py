@@ -1,368 +1,453 @@
 from __future__ import annotations
 
+import os
 import re
+import sys
+import time
 import subprocess
-from datetime import datetime
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Iterable, Optional, Tuple, List
 
 import pandas as pd
 import streamlit as st
 
-# ============================================================
+
+# =========================
 # Paths
-# ============================================================
+# =========================
 BASE_DIR = Path(__file__).resolve().parent
-OUTPUTS_DIR = BASE_DIR / "outputs"
-FIG_DIR = OUTPUTS_DIR / "figures"
-TABLE_DIR = OUTPUTS_DIR / "tables"
+DATA_DIR = BASE_DIR / "data"
+OUTPUT_DIR = BASE_DIR / "outputs"
+FIG_DIR = OUTPUT_DIR / "figures"
+TABLE_DIR = OUTPUT_DIR / "tables"
 
-REPORT_MD_PRIMARY = BASE_DIR / "report" / "REPORT.md"
-REPORT_MD_FALLBACK = OUTPUTS_DIR / "report.md"
+WEIGHTS_PATH = DATA_DIR / "weights.csv"
 
-WEIGHTS_CSV = BASE_DIR / "data" / "weights.csv"
+# Report candidates (some repos use outputs/REPORT.md, some use REPORT.md at root)
+REPORT_MD_PRIMARY = OUTPUT_DIR / "REPORT.md"
+REPORT_MD_FALLBACK = BASE_DIR / "REPORT.md"
 
 
-# ============================================================
+# =========================
+# UI Config
+# =========================
+st.set_page_config(
+    page_title="Portfolio Risk War Room Dashboard",
+    page_icon="📊",
+    layout="wide",
+)
+
+
+# =========================
 # Helpers
-# ============================================================
-def file_mtime(p: Path) -> str:
-    if not p.exists():
-        return "N/A"
-    dt = datetime.fromtimestamp(p.stat().st_mtime)
-    return dt.strftime("%Y-%m-%d %H:%M:%S")
+# =========================
+def _now_ts() -> str:
+    return time.strftime("%Y-%m-%d %H:%M:%S")
 
 
-def safe_read_text(p: Path) -> str:
-    try:
-        return p.read_text(encoding="utf-8")
-    except UnicodeDecodeError:
-        return p.read_text(encoding="latin-1", errors="replace")
+def file_mtime(path: Path) -> Optional[str]:
+    if not path.exists():
+        return None
+    return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(path.stat().st_mtime))
 
 
-@st.cache_data(show_spinner=False)
-def load_csv_cached(path_str: str) -> pd.DataFrame:
-    p = Path(path_str)
-    return pd.read_csv(p)
+def latest_mtime_under(path: Path) -> Optional[str]:
+    if not path.exists():
+        return None
+    latest = None
+    for p in path.rglob("*"):
+        if p.is_file():
+            t = p.stat().st_mtime
+            latest = t if latest is None else max(latest, t)
+    if latest is None:
+        return None
+    return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(latest))
 
 
-def show_csv(filename: str, title: str | None = None):
-    p = TABLE_DIR / filename
-    if title:
-        st.markdown(f"**{title}**")
-    if not p.exists():
-        st.warning(f"Missing table: {p}")
-        return
-    df = load_csv_cached(str(p))
-    st.dataframe(df, use_container_width=True)
-
-
-def show_png(filename: str, caption: str | None = None):
-    p = FIG_DIR / filename
-    if not p.exists():
-        st.warning(f"Missing figure: {p}")
-        return
-    st.image(str(p), caption=caption, use_container_width=True)
-
-
-def list_inventory():
-    figs = sorted([f.name for f in FIG_DIR.glob("*.png")]) if FIG_DIR.exists() else []
-    tables = sorted([t.name for t in TABLE_DIR.glob("*.csv")]) if TABLE_DIR.exists() else []
+def list_inventory(fig_dir: Path, table_dir: Path) -> Tuple[List[str], List[str]]:
+    figs = []
+    tables = []
+    if fig_dir.exists():
+        figs = sorted([p.name for p in fig_dir.glob("*.png")])
+    if table_dir.exists():
+        tables = sorted([p.name for p in table_dir.glob("*.csv")])
     return figs, tables
 
 
-def resolve_report_path() -> Path | None:
-    if REPORT_MD_PRIMARY.exists():
-        return REPORT_MD_PRIMARY
-    if REPORT_MD_FALLBACK.exists():
-        return REPORT_MD_FALLBACK
-    return None
+def ensure_dirs() -> None:
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    FIG_DIR.mkdir(parents=True, exist_ok=True)
+    TABLE_DIR.mkdir(parents=True, exist_ok=True)
 
 
-def resolve_image_path(img_ref: str, report_file: Path) -> Path | None:
+def normalize_weights_df(df: pd.DataFrame) -> pd.DataFrame:
     """
-    img_ref could be:
-      - "outputs/figures/var_compare.png"
-      - "../outputs/figures/var_compare.png"
-      - "var_compare.png"
-    We try multiple sensible bases.
+    Accept common formats:
+      - ticker,weight
+      - asset,weight
+      - Asset,Weight
+    Return a clean df with columns: ticker, weight (float).
     """
-    # Strip query/anchors if any
-    img_ref = img_ref.split("#")[0].split("?")[0].strip()
+    cols = [c.strip() for c in df.columns]
+    df.columns = cols
 
-    candidates = []
+    # map column names
+    col_map = {}
+    for c in df.columns:
+        lc = c.lower()
+        if lc in {"ticker", "tickers", "symbol", "symbols"}:
+            col_map[c] = "ticker"
+        if lc in {"asset", "assets"}:
+            col_map[c] = "ticker"
+        if lc in {"weight", "weights"}:
+            col_map[c] = "weight"
 
-    # 1) Relative to report file directory
-    candidates.append((report_file.parent / img_ref).resolve())
+    df = df.rename(columns=col_map)
 
-    # 2) Relative to project root
-    candidates.append((BASE_DIR / img_ref).resolve())
+    if "ticker" not in df.columns or "weight" not in df.columns:
+        raise ValueError("weights.csv must have columns: ticker/asset and weight")
 
-    # 3) If it looks like a figures filename, try outputs/figures directly
-    candidates.append((FIG_DIR / Path(img_ref).name).resolve())
+    df = df[["ticker", "weight"]].copy()
+    df["ticker"] = df["ticker"].astype(str).str.strip()
+    df["weight"] = pd.to_numeric(df["weight"], errors="coerce").fillna(0.0).astype(float)
 
-    for c in candidates:
-        if c.exists() and c.is_file():
-            return c
-    return None
+    # drop empty tickers
+    df = df[df["ticker"].str.len() > 0].reset_index(drop=True)
+    return df
 
 
-def render_report_md_with_images(report_file: Path):
+def load_weights(path: Path) -> pd.DataFrame:
+    if not path.exists():
+        # sensible default
+        return pd.DataFrame(
+            {"ticker": ["XIU", "VFV", "XEF", "ZAG", "GLD", "RY"], "weight": [0.25, 0.2, 0.15, 0.2, 0.1, 0.1]}
+        )
+    df = pd.read_csv(path)
+    return normalize_weights_df(df)
+
+
+def save_weights_for_pipeline(df_ticker_weight: pd.DataFrame, path: Path) -> None:
     """
-    Render markdown, but convert markdown image lines to st.image
-    so images show correctly on Streamlit Cloud.
+    ROOT FIX:
+    - UI uses ticker
+    - pipeline scripts expect asset,weight (based on your error message)
+    So we write EXACTLY: asset,weight
     """
-    md = safe_read_text(report_file)
-
-    # match: ![alt](path)
-    img_pat = re.compile(r"!\[(?P<alt>[^\]]*)\]\((?P<path>[^)]+)\)")
-
-    buffer_lines: list[str] = []
-
-    def flush_buffer():
-        nonlocal buffer_lines
-        if buffer_lines:
-            st.markdown("\n".join(buffer_lines), unsafe_allow_html=False)
-            buffer_lines = []
-
-    for line in md.splitlines():
-        m = img_pat.search(line)
-        if not m:
-            buffer_lines.append(line)
-            continue
-
-        # flush text before image
-        flush_buffer()
-
-        alt = (m.group("alt") or "").strip()
-        img_ref = (m.group("path") or "").strip()
-
-        img_path = resolve_image_path(img_ref, report_file)
-        if img_path is None:
-            st.warning(f"Missing image referenced in REPORT.md: `{img_ref}`")
-        else:
-            st.image(str(img_path), caption=alt if alt else None, use_container_width=True)
-
-        # If there is remaining text besides the image markdown in the same line, show it
-        # (rare, but just in case)
-        remainder = img_pat.sub("", line).strip()
-        if remainder:
-            st.markdown(remainder, unsafe_allow_html=False)
-
-    flush_buffer()
+    out = df_ticker_weight.copy()
+    out = normalize_weights_df(out)
+    out = out.rename(columns={"ticker": "asset"})
+    out.to_csv(path, index=False)
 
 
-def load_weights() -> pd.DataFrame:
-    if not WEIGHTS_CSV.exists():
-        # Create a default file to avoid crashes
-        WEIGHTS_CSV.parent.mkdir(parents=True, exist_ok=True)
-        df = pd.DataFrame({"asset": [], "weight": []})
-        df.to_csv(WEIGHTS_CSV, index=False)
-        return df
-    return pd.read_csv(WEIGHTS_CSV)
+@dataclass
+class CmdResult:
+    cmd: str
+    returncode: int
+    stdout: str
+    stderr: str
 
 
-def save_weights(df: pd.DataFrame):
-    WEIGHTS_CSV.parent.mkdir(parents=True, exist_ok=True)
-    df.to_csv(WEIGHTS_CSV, index=False)
-
-
-def try_run_all_scripts() -> tuple[bool, str]:
+def run_commands(cmds: Iterable[List[str]], cwd: Path) -> Tuple[bool, List[CmdResult]]:
     """
-    Attempt to run scripts/run_all.sh to regenerate outputs.
-    Works locally; on Streamlit Cloud it may fail due to permissions/time.
+    Run commands with current python env and PYTHONPATH fixed to project root.
+    This prevents:
+      - No module named 'src'
+      - pandas missing due to different interpreter
     """
-    script = BASE_DIR / "scripts" / "run_all.sh"
-    if not script.exists():
-        return False, f"Not found: {script}"
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(cwd)
 
-    try:
-        # Ensure executable (best-effort)
-        script.chmod(script.stat().st_mode | 0o111)
-    except Exception:
-        pass
+    results: List[CmdResult] = []
+    ok = True
 
-    try:
-        proc = subprocess.run(
-            ["bash", str(script)],
-            cwd=str(BASE_DIR),
+    for cmd in cmds:
+        p = subprocess.run(
+            cmd,
+            cwd=str(cwd),
+            env=env,
             capture_output=True,
             text=True,
-            check=False,
         )
-        out = (proc.stdout or "") + "\n" + (proc.stderr or "")
-        ok = proc.returncode == 0
-        return ok, out[-6000:]  # keep tail so Streamlit doesn't choke
-    except Exception as e:
-        return False, f"Failed to run scripts: {e}"
+        results.append(
+            CmdResult(
+                cmd=" ".join(cmd),
+                returncode=p.returncode,
+                stdout=p.stdout or "",
+                stderr=p.stderr or "",
+            )
+        )
+        if p.returncode != 0:
+            ok = False
+            break
+
+    return ok, results
 
 
-# ============================================================
-# UI
-# ============================================================
-st.set_page_config(page_title="Portfolio Risk War Room", layout="wide")
+def discover_pipeline_steps() -> List[Path]:
+    """
+    Try to run common pipeline scripts if they exist.
+    (Your repo has at least risk_contribution.py and run_historical_scenarios.py.)
+    """
+    candidates = [
+        "src/run_hist_var_series.py",
+        "src/run_var_normal_series.py",
+        "src/run_ewma_var_series.py",
+        "src/run_var_backtest.py",
+        "src/run_historical_scenarios.py",
+        "src/risk_contribution.py",
+        "src/build_report.py",
+    ]
+    steps = []
+    for rel in candidates:
+        p = BASE_DIR / rel
+        if p.exists():
+            steps.append(p)
 
-st.title("📊 Portfolio Risk War Room Dashboard")
-st.caption(
-    "A lightweight dashboard to view risk metrics, VaR models, backtests, stress scenarios, "
-    "and risk contribution outputs."
-)
+    # If none matched, fall back to any "run_" scripts then build_report/risk_contribution
+    if not steps:
+        run_scripts = sorted((BASE_DIR / "src").glob("run_*.py")) if (BASE_DIR / "src").exists() else []
+        for p in run_scripts:
+            steps.append(p)
+        for rel in ["src/risk_contribution.py", "src/build_report.py"]:
+            p = BASE_DIR / rel
+            if p.exists() and p not in steps:
+                steps.append(p)
 
-# Sidebar controls
+    return steps
+
+
+def resolve_report_path(primary: Path, fallback: Path) -> Optional[Path]:
+    if primary.exists():
+        return primary
+    if fallback.exists():
+        return fallback
+    return None
+
+
+def render_report_md_with_images(report_path: Path) -> None:
+    """
+    Render markdown and inline images.
+    Supports image links like:
+      ![alt](outputs/figures/xxx.png)
+      ![alt](figures/xxx.png)
+      ![alt](xxx.png)
+    """
+    text = report_path.read_text(encoding="utf-8", errors="replace")
+    lines = text.splitlines()
+
+    img_pat = re.compile(r"!\[([^\]]*)\]\(([^)]+)\)")
+
+    buf: List[str] = []
+
+    def flush_md():
+        nonlocal buf
+        if buf:
+            st.markdown("\n".join(buf))
+            buf = []
+
+    for line in lines:
+        m = img_pat.search(line)
+        if not m:
+            buf.append(line)
+            continue
+
+        # markdown before image on same line
+        before = line[: m.start()].strip()
+        after = line[m.end() :].strip()
+
+        if before:
+            buf.append(before)
+
+        flush_md()
+
+        alt = m.group(1)
+        raw_path = m.group(2).strip().strip('"').strip("'")
+
+        # resolve image path
+        img_candidates = [
+            (report_path.parent / raw_path),
+            (BASE_DIR / raw_path),
+            (OUTPUT_DIR / raw_path),
+            (FIG_DIR / Path(raw_path).name),
+        ]
+        img_path = next((p for p in img_candidates if p.exists()), None)
+
+        if img_path is not None:
+            st.image(str(img_path), caption=alt if alt else None, use_container_width=True)
+        else:
+            st.warning(f"Missing image referenced in report: {raw_path}")
+
+        if after:
+            buf.append(after)
+
+    flush_md()
+
+
+# =========================
+# Sidebar Navigation + Controls
+# =========================
+ensure_dirs()
+
+st.sidebar.title("Navigate")
+page = st.sidebar.radio(" ", ["Overview", "Report", "Tables", "Figures"], index=0)
+
 st.sidebar.header("Controls")
 
-# Weights editor
-with st.sidebar.expander("⚖️ Portfolio Weights (edit)", expanded=False):
-    wdf = load_weights()
-    if wdf.empty:
-        st.info("`data/weights.csv` is empty. Add assets there first (asset, weight).")
-    else:
-        # Build sliders
-        assets = wdf["asset"].astype(str).tolist()
-        weights = wdf["weight"].astype(float).tolist()
-
-        st.write("Adjust weights below. You can auto-normalize to sum to 1.0.")
-        new_weights = []
-        for a, w in zip(assets, weights):
-            new_w = st.slider(a, min_value=0.0, max_value=1.0, value=float(w), step=0.01)
-            new_weights.append(new_w)
-
-        total = sum(new_weights)
-        st.write(f"Current sum: **{total:.4f}**")
-
-        colA, colB = st.columns(2)
-        with colA:
-            normalize = st.button("Normalize to sum=1")
-        with colB:
-            save_btn = st.button("Save to data/weights.csv")
-
-        if normalize and total > 0:
-            new_weights = [w / total for w in new_weights]
-            total = 1.0
-            st.success("Normalized. Now click Save if you want to persist.")
-
-        if save_btn:
-            out_df = pd.DataFrame({"asset": assets, "weight": new_weights})
-            save_weights(out_df)
-            st.success("Saved weights to data/weights.csv ✅")
-
-            st.info(
-                "To update charts/tables, you must regenerate outputs. "
-                "Locally you can run `./scripts/run_all.sh` (or click below). "
-                "On Streamlit Cloud, use **Manage App → Restart** to re-run the preScript."
-            )
-
-        # Optional: run scripts from UI (mostly for local use)
-        run_now = st.button("Run scripts now (local best)")
-        if run_now:
-            with st.spinner("Running scripts/run_all.sh ..."):
-                ok, log_tail = try_run_all_scripts()
-            if ok:
-                st.success("Scripts completed. Click 'Refresh / Rerun' on the main page.")
-            else:
-                st.error("Scripts failed (this is common on Streamlit Cloud).")
-            st.code(log_tail)
-
-# Section toggles
-show_report = st.sidebar.checkbox("Show Report (REPORT.md)", value=True)
-show_var_compare = st.sidebar.checkbox("Show VaR Comparison", value=True)
-show_var_backtest = st.sidebar.checkbox("Show VaR Backtest", value=True)
-show_hist_scen = st.sidebar.checkbox("Show Historical Stress Scenarios", value=True)
-show_risk_contrib = st.sidebar.checkbox("Show Risk Contribution", value=True)
-
-# Refresh button
-if st.sidebar.button("Refresh / Rerun (reload outputs)"):
+if st.sidebar.button("🧹 Clear cache + reload"):
     st.cache_data.clear()
+    st.cache_resource.clear()
     st.rerun()
 
-# Last updated
-st.info(f"Last Updated (outputs): {file_mtime(OUTPUTS_DIR)}")
 
-# Inventory
-with st.expander("📁 Output Inventory (click to expand)", expanded=False):
-    figs, tables = list_inventory()
-    c1, c2 = st.columns(2)
-    with c1:
-        st.markdown("**Figures:**")
-        st.write(figs)
-    with c2:
-        st.markdown("**Tables:**")
-        st.write(tables)
+# =========================
+# Portfolio Weights Editor
+# =========================
+with st.sidebar.expander("⚖️ Portfolio Weights (edit)", expanded=True):
+    try:
+        weights_df = load_weights(WEIGHTS_PATH)
+    except Exception as e:
+        st.error(f"Failed to load weights: {e}")
+        weights_df = pd.DataFrame({"ticker": [], "weight": []})
 
-st.divider()
+    edited = st.data_editor(
+        weights_df,
+        num_rows="dynamic",
+        use_container_width=True,
+        column_config={
+            "ticker": st.column_config.TextColumn("ticker"),
+            "weight": st.column_config.NumberColumn("weight", min_value=0.0, max_value=1.0, step=0.01, format="%.6f"),
+        },
+        key="weights_editor",
+    )
 
-# ============================================================
-# Sections
-# ============================================================
-if show_report:
+    # compute sum
+    try:
+        edited_norm = normalize_weights_df(pd.DataFrame(edited))
+        s = float(edited_norm["weight"].sum())
+    except Exception:
+        edited_norm = pd.DataFrame({"ticker": [], "weight": []})
+        s = float("nan")
+
+    st.caption(f"Current sum of weights = {s:.6f}" if s == s else "Current sum of weights = (invalid)")
+
+    colA, colB = st.columns(2)
+
+    if colA.button("💾 Save weights.csv", use_container_width=True):
+        try:
+            save_weights_for_pipeline(edited_norm, WEIGHTS_PATH)
+            st.success("Saved data/weights.csv (as asset,weight for pipeline compatibility).")
+        except Exception as e:
+            st.error(f"Save failed: {e}")
+
+    if colB.button("🚀 Save + Rerun pipeline", use_container_width=True):
+        try:
+            save_weights_for_pipeline(edited_norm, WEIGHTS_PATH)
+            st.info("Saved weights.csv — running pipeline...")
+
+            steps = discover_pipeline_steps()
+            if not steps:
+                st.error("No pipeline scripts found under src/.")
+            else:
+                cmds = [[sys.executable, str(p)] for p in steps]
+                ok, results = run_commands(cmds, cwd=BASE_DIR)
+
+                st.subheader("🧾 Pipeline logs")
+                for r in results:
+                    st.code(
+                        f"$ {r.cmd}\n"
+                        f"(exit={r.returncode})\n\n"
+                        f"{r.stdout}\n"
+                        f"{r.stderr}".strip(),
+                        language="text",
+                    )
+
+                if ok:
+                    st.success("Pipeline finished successfully.")
+                    # HARD refresh: clear caches and rerun so tables/figures reflect new outputs
+                    st.cache_data.clear()
+                    st.cache_resource.clear()
+                    st.rerun()
+                else:
+                    st.error("Pipeline failed. See logs above.")
+        except Exception as e:
+            st.error(f"Pipeline runner error: {e}")
+
+
+# =========================
+# Main Pages
+# =========================
+st.title("📊 Portfolio Risk War Room Dashboard")
+st.caption("A lightweight dashboard to view risk metrics, VaR models, backtests, stress scenarios, and risk contribution outputs.")
+
+if page == "Overview":
+    updated = latest_mtime_under(OUTPUT_DIR)
+    st.info(f"Last Updated (outputs): {updated or 'N/A'}")
+
+    with st.expander("📦 Output Inventory (click to expand)", expanded=True):
+        figs, tables = list_inventory(FIG_DIR, TABLE_DIR)
+        c1, c2 = st.columns(2)
+        with c1:
+            st.write("**Figures**")
+            st.json(figs)
+        with c2:
+            st.write("**Tables**")
+            st.json(tables)
+
+    st.divider()
+    st.subheader("Quick sanity checks")
+    st.write(f"- weights file: `{WEIGHTS_PATH}`")
+    st.write(f"- weights last modified: `{file_mtime(WEIGHTS_PATH) or 'missing'}`")
+    st.write(f"- outputs dir: `{OUTPUT_DIR}`")
+    st.write(f"- outputs last modified: `{updated or 'N/A'}`")
+
+elif page == "Report":
     st.header("🧾 Report")
-    report_file = resolve_report_path()
+    report_file = resolve_report_path(REPORT_MD_PRIMARY, REPORT_MD_FALLBACK)
+
     if report_file is None:
         st.warning(f"Missing report file. Looked for:\n- {REPORT_MD_PRIMARY}\n- {REPORT_MD_FALLBACK}")
     else:
-        st.caption(f"Updated: {file_mtime(report_file)}  |  Path: {report_file}")
-        # Render markdown with images fixed
+        st.caption(f"Updated: {file_mtime(report_file)}   |   Path: {report_file}")
+        # Render markdown + inline images
         render_report_md_with_images(report_file)
 
-        # Download
+        st.divider()
+        report_text = report_file.read_text(encoding="utf-8", errors="replace")
         st.download_button(
             "Download REPORT.md",
-            data=safe_read_text(report_file).encode("utf-8"),
+            data=report_text.encode("utf-8"),
             file_name="REPORT.md",
             mime="text/markdown",
-            use_container_width=True,
         )
 
-st.divider()
+elif page == "Tables":
+    st.header("📋 Tables")
+    if not TABLE_DIR.exists():
+        st.warning("outputs/tables not found.")
+    else:
+        tables = sorted(TABLE_DIR.glob("*.csv"))
+        if not tables:
+            st.warning("No CSV tables found in outputs/tables.")
+        else:
+            pick = st.selectbox("Select a table", [p.name for p in tables], index=0)
+            p = TABLE_DIR / pick
+            st.caption(f"Updated: {file_mtime(p)}")
+            df = pd.read_csv(p)
+            st.dataframe(df, use_container_width=True)
 
-if show_var_compare:
-    st.header("📉 VaR Model Comparison")
-    # Ensure the comparison figure shows
-    show_png("var_compare.png", caption="VaR compare: Hist vs Normal vs EWMA (if available)")
+elif page == "Figures":
+    st.header("🖼️ Figures")
+    if not FIG_DIR.exists():
+        st.warning("outputs/figures not found.")
+    else:
+        figs = sorted(FIG_DIR.glob("*.png"))
+        if not figs:
+            st.warning("No PNG figures found in outputs/figures.")
+        else:
+            pick = st.selectbox("Select a figure", [p.name for p in figs], index=0)
+            p = FIG_DIR / pick
+            st.caption(f"Updated: {file_mtime(p)}")
+            st.image(str(p), use_container_width=True)
 
-    st.subheader("VaR Series Tables (if present)")
-    cols = st.columns(3)
-    with cols[0]:
-        st.markdown("**Historical VaR**")
-        show_csv("var_hist_series.csv")
-    with cols[1]:
-        st.markdown("**Normal VaR**")
-        show_csv("var_normal_series.csv")
-    with cols[2]:
-        st.markdown("**EWMA VaR**")
-        show_csv("ewma_var_series.csv")
-
-st.divider()
-
-if show_var_backtest:
-    st.header("✅ VaR Backtest")
-    c1, c2 = st.columns(2)
-    with c1:
-        show_png("var_backtest_breach_rate.png", caption="Backtest breach rate")
-    with c2:
-        show_png("kupiec_pvalues.png", caption="Kupiec test p-values")
-
-    st.subheader("Backtest Tables")
-    cols = st.columns(2)
-    with cols[0]:
-        st.markdown("**Backtest Summary**")
-        show_csv("var_backtest_summary.csv")
-    with cols[1]:
-        st.markdown("**Kupiec Table**")
-        show_csv("var_backtest_kupiec.csv")
-
-    st.subheader("EWMA Backtest Summary (if present)")
-    show_csv("var_ewma_backtest_summary.csv")
-
-st.divider()
-
-if show_hist_scen:
-    st.header("🧨 Historical Stress Scenarios")
-    show_png("historical_scenarios.png", caption="Historical scenarios summary (if generated)")
-    show_csv("historical_scenarios.csv")
-
-st.divider()
-
-if show_risk_contrib:
-    st.header("🧩 Risk Contribution")
-    show_png("top_risk_contributors.png", caption="Top risk contributors (vol contribution)")
-    show_csv("risk_contribution.csv")

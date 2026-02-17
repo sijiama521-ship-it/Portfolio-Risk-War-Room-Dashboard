@@ -10,7 +10,8 @@ prices = prices.sort_values("Date").set_index("Date")
 # --- Clean numeric columns: remove $, €, commas, spaces ---
 for c in prices.columns:
     prices[c] = (
-        prices[c].astype(str)
+        prices[c]
+        .astype(str)
         .str.replace("$", "", regex=False)
         .str.replace("€", "", regex=False)
         .str.replace(",", "", regex=False)

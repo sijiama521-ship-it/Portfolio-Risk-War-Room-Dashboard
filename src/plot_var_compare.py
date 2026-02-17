@@ -1,6 +1,8 @@
 import os
-import pandas as pd
+
 import matplotlib.pyplot as plt
+import pandas as pd
+
 
 def main():
     hist_path = "outputs/tables/var_hist_series.csv"
@@ -37,6 +39,7 @@ def main():
     out_path = "outputs/figures/var_compare.png"
     plt.savefig(out_path, dpi=200, bbox_inches="tight")
     print(f"Saved: {out_path}")
+
 
 if __name__ == "__main__":
     main()
