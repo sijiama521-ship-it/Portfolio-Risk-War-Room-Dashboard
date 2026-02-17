@@ -35,6 +35,7 @@ app_old_ui_backup.py
 outputs/
 
 # But keep the specific artifacts we want to ship to Streamlit Cloud
+!outputs/REPORT.md
 !outputs/report.md
 !outputs/tables/
 !outputs/tables/*.csv
