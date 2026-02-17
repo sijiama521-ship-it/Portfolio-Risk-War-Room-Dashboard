@@ -31,3 +31,13 @@ data/weights.csv
 *_backup.py
 app_old_ui_backup.py
 
+# Ignore all generated outputs by default
+outputs/
+
+# But keep the specific artifacts we want to ship to Streamlit Cloud
+!outputs/report.md
+!outputs/tables/
+!outputs/tables/*.csv
+!outputs/figures/
+!outputs/figures/*.png
+
