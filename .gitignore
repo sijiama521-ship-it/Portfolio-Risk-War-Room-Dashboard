@@ -19,3 +19,15 @@ data/prices.csv
 data/prices_clean.csv
 *.save
 _backup_local_images/
+
+# ---- generated outputs ----
+outputs/
+report/REPORT.md
+
+# ---- runtime config (keep an example instead) ----
+data/weights.csv
+
+# ---- local backups ----
+*_backup.py
+app_old_ui_backup.py
+
