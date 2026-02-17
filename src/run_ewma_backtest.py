@@ -1,9 +1,10 @@
 # src/run_ewma_backtest.py
 import os
+
 import numpy as np
 import pandas as pd
 
-from src.backtest import kupiec_pof_test, christoffersen_independence_test
+from src.backtest import christoffersen_independence_test, kupiec_pof_test
 from src.var_models import ewma_var_threshold, ewma_vol
 
 
@@ -11,7 +12,9 @@ def main():
     # ---- inputs ----
     ret_path = "data/portfolio_returns.csv"
     if not os.path.exists(ret_path):
-        raise FileNotFoundError(f"Missing {ret_path}. Make sure your returns file exists.")
+        raise FileNotFoundError(
+            f"Missing {ret_path}. Make sure your returns file exists."
+        )
 
     rets = pd.read_csv(ret_path)
 
@@ -36,18 +39,22 @@ def main():
 
     # ---- compute full series once (useful to save) ----
     sigma = ewma_vol(r, lam=lam)
-    out_series = pd.DataFrame({
-        "t": np.arange(n),
-        "portfolio_return": r,
-        "ewma_sigma": sigma,
-    })
+    out_series = pd.DataFrame(
+        {
+            "t": np.arange(n),
+            "portfolio_return": r,
+            "ewma_sigma": sigma,
+        }
+    )
 
     rows = []
     for cfg in configs:
         conf = float(cfg["confidence"])
         alpha = float(cfg["alpha"])
 
-        thr = ewma_var_threshold(r, alpha=alpha, lam=lam, mu=mu)  # dynamic threshold series
+        thr = ewma_var_threshold(
+            r, alpha=alpha, lam=lam, mu=mu
+        )  # dynamic threshold series
         breach_mask = (r < thr).astype(int)
         breaches = int(breach_mask.sum())
         breach_rate = breaches / n
@@ -55,20 +62,26 @@ def main():
         kupiec_p = float(kupiec_pof_test(breaches, n, alpha))
         christ_p = float(christoffersen_independence_test(breach_mask))
 
-        rows.append({
-            "method": "ewma",
-            "lam": lam,
-            "mu_used": mu,
-            "confidence": conf,
-            "alpha": alpha,
-            "N": n,
-            "breaches": breaches,
-            "breach_rate": breach_rate,
-            "kupiec_pvalue": kupiec_p,
-            "christoffersen_pvalue": christ_p,
-            "kupiec_pass_0.05": (kupiec_p > 0.05) if not np.isnan(kupiec_p) else False,
-            "christ_pass_0.05": (christ_p > 0.05) if not np.isnan(christ_p) else False,
-        })
+        rows.append(
+            {
+                "method": "ewma",
+                "lam": lam,
+                "mu_used": mu,
+                "confidence": conf,
+                "alpha": alpha,
+                "N": n,
+                "breaches": breaches,
+                "breach_rate": breach_rate,
+                "kupiec_pvalue": kupiec_p,
+                "christoffersen_pvalue": christ_p,
+                "kupiec_pass_0.05": (
+                    (kupiec_p > 0.05) if not np.isnan(kupiec_p) else False
+                ),
+                "christ_pass_0.05": (
+                    (christ_p > 0.05) if not np.isnan(christ_p) else False
+                ),
+            }
+        )
 
         # also store VaR threshold series in the series output
         out_series[f"ewma_var_thr_{int(conf*100)}"] = thr

@@ -3,25 +3,24 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
-from typing import List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
-
 
 # -----------------------------
 # Config: paths + scenarios
 # -----------------------------
 PORTFOLIO_RETURNS_PATH = "data/portfolio_returns.csv"  # columns: Date, portfolio_return
-ASSET_RETURNS_PATH = "data/returns.csv"                # columns: Date, XIU, VFV, XEF, ZAG, GLD, RY ...
-WEIGHTS_PATH = "data/weights.csv"                      # columns: asset, weight (or Asset, Weight)
+ASSET_RETURNS_PATH = (
+    "data/returns.csv"  # columns: Date, XIU, VFV, XEF, ZAG, GLD, RY ...
+)
+WEIGHTS_PATH = "data/weights.csv"  # columns: asset, weight (or Asset, Weight)
 OUT_PATH = "outputs/tables/historical_scenarios.csv"
 
 MIN_ROWS_IN_WINDOW = 5  # basic sanity check
 
 
-SCENARIOS: List[Tuple[str, str, str]] = [
+SCENARIOS: list[tuple[str, str, str]] = [
     ("Worst 20D Window (in-sample)", "2025-03-12", "2025-04-08"),
     ("Worst 60D Window (in-sample)", "2025-01-14", "2025-04-07"),
     ("Worst Day Context (±10d)", "2025-03-25", "2025-04-15"),
@@ -57,7 +56,9 @@ def load_asset_returns(path: str) -> pd.DataFrame:
         df["Date"] = pd.to_datetime(df["date"])
         df = df.drop(columns=["date"])
     else:
-        raise ValueError(f"{path} must have a Date/date column, got {df.columns.tolist()}")
+        raise ValueError(
+            f"{path} must have a Date/date column, got {df.columns.tolist()}"
+        )
     df = df.sort_values("Date").reset_index(drop=True)
     return df
 
@@ -125,7 +126,7 @@ def top_contributors_on_day(
     w = weights.reindex(tickers).fillna(0.0)
 
     r = row.iloc[0][tickers].astype(float)
-    contrib = (w.values * r.values)  # approx contribution to portfolio return that day
+    contrib = w.values * r.values  # approx contribution to portfolio return that day
 
     contrib_s = pd.Series(contrib, index=tickers).sort_values()
     worst = contrib_s.head(top_k)
@@ -154,7 +155,9 @@ def main() -> None:
     worst_day = pr.loc[worst_idx, "Date"]
     worst_day_ret = float(pr.loc[worst_idx, "portfolio_return"])
 
-    print(f"data_range: {pr['Date'].min().date()} to {pr['Date'].max().date()} n={len(pr)}")
+    print(
+        f"data_range: {pr['Date'].min().date()} to {pr['Date'].max().date()} n={len(pr)}"
+    )
     print(f"worst_day: {worst_day.date()} return={worst_day_ret}")
 
     rows = []
@@ -163,7 +166,9 @@ def main() -> None:
 
         print(f"{name}: rows_in_window={len(w)} start={start} end={end}")
         if len(w) < MIN_ROWS_IN_WINDOW:
-            raise ValueError(f"{name} window too short or missing data: {start} to {end}")
+            raise ValueError(
+                f"{name} window too short or missing data: {start} to {end}"
+            )
 
         win_rets = w["portfolio_return"].astype(float)
         cum_ret = cumulative_return(win_rets)

@@ -66,7 +66,9 @@ def show_png(filename: str, caption: str | None = None):
 
 def list_inventory():
     figs = sorted([f.name for f in FIG_DIR.glob("*.png")]) if FIG_DIR.exists() else []
-    tables = sorted([t.name for t in TABLE_DIR.glob("*.csv")]) if TABLE_DIR.exists() else []
+    tables = (
+        sorted([t.name for t in TABLE_DIR.glob("*.csv")]) if TABLE_DIR.exists() else []
+    )
     return figs, tables
 
 
@@ -140,7 +142,9 @@ def render_report_md_with_images(report_file: Path):
         if img_path is None:
             st.warning(f"Missing image referenced in REPORT.md: `{img_ref}`")
         else:
-            st.image(str(img_path), caption=alt if alt else None, use_container_width=True)
+            st.image(
+                str(img_path), caption=alt if alt else None, use_container_width=True
+            )
 
         # If there is remaining text besides the image markdown in the same line, show it
         # (rare, but just in case)
@@ -222,8 +226,10 @@ with st.sidebar.expander("⚖️ Portfolio Weights (edit)", expanded=False):
 
         st.write("Adjust weights below. You can auto-normalize to sum to 1.0.")
         new_weights = []
-        for a, w in zip(assets, weights):
-            new_w = st.slider(a, min_value=0.0, max_value=1.0, value=float(w), step=0.01)
+        for a, w in zip(assets, weights, strict=False):
+            new_w = st.slider(
+                a, min_value=0.0, max_value=1.0, value=float(w), step=0.01
+            )
             new_weights.append(new_w)
 
         total = sum(new_weights)
@@ -257,7 +263,9 @@ with st.sidebar.expander("⚖️ Portfolio Weights (edit)", expanded=False):
             with st.spinner("Running scripts/run_all.sh ..."):
                 ok, log_tail = try_run_all_scripts()
             if ok:
-                st.success("Scripts completed. Click 'Refresh / Rerun' on the main page.")
+                st.success(
+                    "Scripts completed. Click 'Refresh / Rerun' on the main page."
+                )
             else:
                 st.error("Scripts failed (this is common on Streamlit Cloud).")
             st.code(log_tail)
@@ -297,7 +305,9 @@ if show_report:
     st.header("🧾 Report")
     report_file = resolve_report_path()
     if report_file is None:
-        st.warning(f"Missing report file. Looked for:\n- {REPORT_MD_PRIMARY}\n- {REPORT_MD_FALLBACK}")
+        st.warning(
+            f"Missing report file. Looked for:\n- {REPORT_MD_PRIMARY}\n- {REPORT_MD_FALLBACK}"
+        )
     else:
         st.caption(f"Updated: {file_mtime(report_file)}  |  Path: {report_file}")
         # Render markdown with images fixed
@@ -317,7 +327,9 @@ st.divider()
 if show_var_compare:
     st.header("📉 VaR Model Comparison")
     # Ensure the comparison figure shows
-    show_png("var_compare.png", caption="VaR compare: Hist vs Normal vs EWMA (if available)")
+    show_png(
+        "var_compare.png", caption="VaR compare: Hist vs Normal vs EWMA (if available)"
+    )
 
     st.subheader("VaR Series Tables (if present)")
     cols = st.columns(3)
@@ -357,12 +369,17 @@ st.divider()
 
 if show_hist_scen:
     st.header("🧨 Historical Stress Scenarios")
-    show_png("historical_scenarios.png", caption="Historical scenarios summary (if generated)")
+    show_png(
+        "historical_scenarios.png",
+        caption="Historical scenarios summary (if generated)",
+    )
     show_csv("historical_scenarios.csv")
 
 st.divider()
 
 if show_risk_contrib:
     st.header("🧩 Risk Contribution")
-    show_png("top_risk_contributors.png", caption="Top risk contributors (vol contribution)")
+    show_png(
+        "top_risk_contributors.png", caption="Top risk contributors (vol contribution)"
+    )
     show_csv("risk_contribution.csv")

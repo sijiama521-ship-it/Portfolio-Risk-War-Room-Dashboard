@@ -1,15 +1,24 @@
+from pathlib import Path
+
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-from pathlib import Path
 
 DATA_DIR = Path("data")
 IMG_DIR = Path("images")
 IMG_DIR.mkdir(exist_ok=True)
 
 # Load daily returns by asset + portfolio returns
-rets = pd.read_csv(DATA_DIR / "returns.csv", parse_dates=["Date"]).set_index("Date").sort_index()
-port = pd.read_csv(DATA_DIR / "portfolio_returns.csv", parse_dates=["Date"]).set_index("Date").sort_index()
+rets = (
+    pd.read_csv(DATA_DIR / "returns.csv", parse_dates=["Date"])
+    .set_index("Date")
+    .sort_index()
+)
+port = (
+    pd.read_csv(DATA_DIR / "portfolio_returns.csv", parse_dates=["Date"])
+    .set_index("Date")
+    .sort_index()
+)
 
 # Load weights
 weights = pd.read_csv(DATA_DIR / "weights.csv")
@@ -30,15 +39,25 @@ scenarios = {
     "Gold rally: GLD +3%": {"GLD": 0.03},
     "International shock: XEF -2%": {"XEF": -0.02},
     "Bank shock: RY -8%": {"RY": -0.08},
-    "All risk-off: equities -8%, bonds -2%, gold +2%": {"XIU": -0.08, "VFV": -0.08, "XEF": -0.08, "RY": -0.08, "ZAG": -0.02, "GLD": 0.02},
+    "All risk-off: equities -8%, bonds -2%, gold +2%": {
+        "XIU": -0.08,
+        "VFV": -0.08,
+        "XEF": -0.08,
+        "RY": -0.08,
+        "ZAG": -0.02,
+        "GLD": 0.02,
+    },
 }
+
 
 def hist_var(x, alpha=0.05):
     return -np.quantile(x, alpha)
 
+
 def hist_cvar(x, alpha=0.05):
     q = np.quantile(x, alpha)
     return -(x[x <= q].mean())
+
 
 base_r = port["portfolio_return"].dropna()
 
@@ -55,14 +74,16 @@ for name, shock_dict in scenarios.items():
     # shocked portfolio return series: add shock to each day's asset return (simple what-if)
     shocked_port = (rets.add(shock_vec, axis=1) * w).sum(axis=1).dropna()
 
-    rows.append({
-        "scenario": name,
-        "shock_only_portfolio_return": shock_only,
-        "VaR95_base": hist_var(base_r, 0.05),
-        "VaR95_shocked": hist_var(shocked_port, 0.05),
-        "CVaR95_base": hist_cvar(base_r, 0.05),
-        "CVaR95_shocked": hist_cvar(shocked_port, 0.05),
-    })
+    rows.append(
+        {
+            "scenario": name,
+            "shock_only_portfolio_return": shock_only,
+            "VaR95_base": hist_var(base_r, 0.05),
+            "VaR95_shocked": hist_var(shocked_port, 0.05),
+            "CVaR95_base": hist_cvar(base_r, 0.05),
+            "CVaR95_shocked": hist_cvar(shocked_port, 0.05),
+        }
+    )
 
 out = pd.DataFrame(rows).sort_values("VaR95_shocked", ascending=False)
 out.to_csv(DATA_DIR / "stress_test_summary.csv", index=False)

@@ -1,4 +1,5 @@
 import time
+
 import pandas as pd
 
 weights = pd.read_csv("data/weights.csv")
@@ -7,6 +8,7 @@ tickers = weights["ticker"].tolist()
 # Convert date to unix timestamps for Yahoo (UTC)
 start = int(pd.Timestamp("2021-01-01", tz="UTC").timestamp())
 end = int(pd.Timestamp.utcnow().timestamp())
+
 
 def fetch_adj_close(ticker):
     url = (
@@ -23,13 +25,14 @@ def fetch_adj_close(ticker):
     s = df[col].rename(ticker)
     return s
 
+
 frames = {}
 for t in tickers:
     try:
         frames[t] = fetch_adj_close(t)
         time.sleep(0.5)  # be polite; reduce rate limits
     except Exception as e:
-        raise RuntimeError(f"Failed for {t}: {e}")
+        raise RuntimeError(f"Failed for {t}: {e}") from e
 
 prices = pd.concat(frames.values(), axis=1)
 prices = prices.dropna(how="all")

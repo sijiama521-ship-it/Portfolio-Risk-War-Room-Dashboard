@@ -3,12 +3,14 @@ import pandas as pd
 weights = pd.read_csv("data/weights.csv")
 tickers = weights["ticker"].tolist()
 
+
 def stooq_symbol(t):
     t = t.strip()
     if t.upper().endswith(".TO"):
-        return t[:-3].lower() + ".to"   # XIU.TO -> xiu.to
+        return t[:-3].lower() + ".to"  # XIU.TO -> xiu.to
     else:
-        return t.lower() + ".us"        # GLD -> gld.us
+        return t.lower() + ".us"  # GLD -> gld.us
+
 
 def fetch_close(sym, orig_ticker):
     url = f"https://stooq.com/q/d/l/?s={sym}&i=d"
@@ -47,6 +49,7 @@ def fetch_close(sym, orig_ticker):
     df = df.dropna(subset=[date_col])
     df = df.set_index(date_col).sort_index()
     return df[close_col]
+
 
 frames = {}
 for t in tickers:

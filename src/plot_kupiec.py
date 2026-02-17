@@ -1,6 +1,8 @@
 import os
-import pandas as pd
+
 import matplotlib.pyplot as plt
+import pandas as pd
+
 
 def main():
     path = "outputs/tables/var_backtest_kupiec.csv"
@@ -34,6 +36,7 @@ def main():
     out_path2 = "outputs/figures/kupiec_pvalues.png"
     plt.savefig(out_path2, dpi=200, bbox_inches="tight")
     print(f"Saved: {out_path2}")
+
 
 if __name__ == "__main__":
     main()

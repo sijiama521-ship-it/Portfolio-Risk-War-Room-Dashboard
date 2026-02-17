@@ -2,7 +2,10 @@
 import numpy as np
 from scipy.stats import norm
 
-def ewma_vol(returns: np.ndarray, lam: float = 0.94, init_sigma: float | None = None) -> np.ndarray:
+
+def ewma_vol(
+    returns: np.ndarray, lam: float = 0.94, init_sigma: float | None = None
+) -> np.ndarray:
     """
     EWMA volatility (RiskMetrics-style):
       sigma_t^2 = lam * sigma_{t-1}^2 + (1-lam) * r_{t-1}^2
@@ -21,12 +24,13 @@ def ewma_vol(returns: np.ndarray, lam: float = 0.94, init_sigma: float | None = 
         init_sigma = float(np.std(r[:m], ddof=1)) if m >= 2 else float(abs(r[0]))
 
     sig2 = np.empty(n, dtype=float)
-    sig2[0] = init_sigma ** 2
+    sig2[0] = init_sigma**2
 
     for t in range(1, n):
         sig2[t] = lam * sig2[t - 1] + (1.0 - lam) * (r[t - 1] ** 2)
 
     return np.sqrt(sig2)
+
 
 def ewma_var_threshold(
     returns: np.ndarray,

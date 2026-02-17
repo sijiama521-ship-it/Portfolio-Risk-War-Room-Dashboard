@@ -1,6 +1,8 @@
 import math
+
 import numpy as np
 from scipy.stats import chi2
+
 
 def kupiec_pof_test(breaches: int, n: int, alpha: float) -> float:
     """
@@ -56,7 +58,7 @@ def christoffersen_independence_test(breach_series) -> float:
         return float("nan")
 
     # probabilities
-    pi  = (n01 + n11) / n if n > 0 else 0.0
+    pi = (n01 + n11) / n if n > 0 else 0.0
     pi0 = n01 / n0 if n0 > 0 else 0.0
     pi1 = n11 / n1 if n1 > 0 else 0.0
 
@@ -68,7 +70,9 @@ def christoffersen_independence_test(breach_series) -> float:
     # log-likelihood under independence
     logL0 = (n00 + n10) * slog(1 - pi) + (n01 + n11) * slog(pi)
     # log-likelihood under 2-state Markov
-    logL1 = n00 * slog(1 - pi0) + n01 * slog(pi0) + n10 * slog(1 - pi1) + n11 * slog(pi1)
+    logL1 = (
+        n00 * slog(1 - pi0) + n01 * slog(pi0) + n10 * slog(1 - pi1) + n11 * slog(pi1)
+    )
 
     lr = -2 * (logL0 - logL1)
     return float(1 - chi2.cdf(lr, df=1))

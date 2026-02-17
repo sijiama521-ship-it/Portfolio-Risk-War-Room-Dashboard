@@ -4,6 +4,7 @@ from pandas_datareader import data as pdr
 weights = pd.read_csv("data/weights.csv")
 tickers = weights["ticker"].tolist()
 
+
 def to_stooq(t):
     t = t.strip()
     if t.upper().endswith(".TO"):
@@ -11,10 +12,11 @@ def to_stooq(t):
     else:
         return t.lower() + ".us"
 
+
 stooq_tickers = [to_stooq(t) for t in tickers]
 
 frames = {}
-for orig, stq in zip(tickers, stooq_tickers):
+for orig, stq in zip(tickers, stooq_tickers, strict=False):
     df = pdr.DataReader(stq, "stooq")
     df = df.sort_index()
     frames[orig] = df["Close"].rename(orig)
