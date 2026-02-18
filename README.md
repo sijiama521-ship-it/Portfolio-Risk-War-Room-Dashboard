@@ -2,7 +2,7 @@
 
 A lightweight **Streamlit** dashboard for monitoring portfolio risk and performance: **VaR models (Historical / Normal / EWMA)**, **backtesting**, **historical stress scenarios**, and **risk contribution**.
 
- **Live Demo:** https://portfolio-risk-war-room-dashboard-5w64nrwwtzipewmgzbzyxn.streamlit.app/
+ **Live Demo:** https://portfolio-risk-war-room-dashboard-weaztwbghwyhfwqn8v9f3j.streamlit.app/
 
 ---
 
