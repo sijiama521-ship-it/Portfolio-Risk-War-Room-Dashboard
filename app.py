@@ -24,9 +24,19 @@ TABLE_DIR = OUTPUT_DIR / "tables"
 
 WEIGHTS_PATH = DATA_DIR / "weights.csv"
 
-# Report candidates (some repos use outputs/REPORT.md, some use REPORT.md at root)
-REPORT_MD_PRIMARY = OUTPUT_DIR / "REPORT.md"
-REPORT_MD_FALLBACK = BASE_DIR / "REPORT.md"
+# IMPORTANT:
+# Your repo generates:
+#  - outputs/report.md   (lowercase)
+#  - report/REPORT.md
+# Sometimes people copy to:
+#  - outputs/REPORT.md
+#  - REPORT.md (root)
+REPORT_CANDIDATES = [
+    OUTPUT_DIR / "report.md",
+    OUTPUT_DIR / "REPORT.md",
+    BASE_DIR / "report" / "REPORT.md",
+    BASE_DIR / "REPORT.md",
+]
 
 
 # =========================
@@ -42,10 +52,6 @@ st.set_page_config(
 # =========================
 # Helpers
 # =========================
-def _now_ts() -> str:
-    return time.strftime("%Y-%m-%d %H:%M:%S")
-
-
 def file_mtime(path: Path) -> Optional[str]:
     if not path.exists():
         return None
@@ -93,13 +99,10 @@ def normalize_weights_df(df: pd.DataFrame) -> pd.DataFrame:
     cols = [c.strip() for c in df.columns]
     df.columns = cols
 
-    # map column names
     col_map = {}
     for c in df.columns:
         lc = c.lower()
-        if lc in {"ticker", "tickers", "symbol", "symbols"}:
-            col_map[c] = "ticker"
-        if lc in {"asset", "assets"}:
+        if lc in {"ticker", "tickers", "symbol", "symbols", "asset", "assets"}:
             col_map[c] = "ticker"
         if lc in {"weight", "weights"}:
             col_map[c] = "weight"
@@ -112,15 +115,12 @@ def normalize_weights_df(df: pd.DataFrame) -> pd.DataFrame:
     df = df[["ticker", "weight"]].copy()
     df["ticker"] = df["ticker"].astype(str).str.strip()
     df["weight"] = pd.to_numeric(df["weight"], errors="coerce").fillna(0.0).astype(float)
-
-    # drop empty tickers
     df = df[df["ticker"].str.len() > 0].reset_index(drop=True)
     return df
 
 
 def load_weights(path: Path) -> pd.DataFrame:
     if not path.exists():
-        # sensible default
         return pd.DataFrame(
             {"ticker": ["XIU", "VFV", "XEF", "ZAG", "GLD", "RY"], "weight": [0.25, 0.2, 0.15, 0.2, 0.1, 0.1]}
         )
@@ -130,14 +130,10 @@ def load_weights(path: Path) -> pd.DataFrame:
 
 def save_weights_for_pipeline(df_ticker_weight: pd.DataFrame, path: Path) -> None:
     """
-    ROOT FIX:
-    - UI uses ticker
-    - pipeline scripts expect asset,weight (based on your error message)
-    So we write EXACTLY: asset,weight
+    UI uses ticker,weight.
+    Pipeline expects asset,weight.
     """
-    out = df_ticker_weight.copy()
-    out = normalize_weights_df(out)
-    out = out.rename(columns={"ticker": "asset"})
+    out = normalize_weights_df(df_ticker_weight).rename(columns={"ticker": "asset"})
     out.to_csv(path, index=False)
 
 
@@ -150,12 +146,6 @@ class CmdResult:
 
 
 def run_commands(cmds: Iterable[List[str]], cwd: Path) -> Tuple[bool, List[CmdResult]]:
-    """
-    Run commands with current python env and PYTHONPATH fixed to project root.
-    This prevents:
-      - No module named 'src'
-      - pandas missing due to different interpreter
-    """
     env = os.environ.copy()
     env["PYTHONPATH"] = str(cwd)
 
@@ -186,15 +176,12 @@ def run_commands(cmds: Iterable[List[str]], cwd: Path) -> Tuple[bool, List[CmdRe
 
 
 def discover_pipeline_steps() -> List[Path]:
-    """
-    Try to run common pipeline scripts if they exist.
-    (Your repo has at least risk_contribution.py and run_historical_scenarios.py.)
-    """
     candidates = [
-        "src/run_hist_var_series.py",
+        "src/run_normal_var_series.py",
         "src/run_var_normal_series.py",
-        "src/run_ewma_var_series.py",
+        "src/run_hist_var_series.py",
         "src/run_var_backtest.py",
+        "src/run_ewma_backtest.py",
         "src/run_historical_scenarios.py",
         "src/risk_contribution.py",
         "src/build_report.py",
@@ -205,11 +192,9 @@ def discover_pipeline_steps() -> List[Path]:
         if p.exists():
             steps.append(p)
 
-    # If none matched, fall back to any "run_" scripts then build_report/risk_contribution
     if not steps:
         run_scripts = sorted((BASE_DIR / "src").glob("run_*.py")) if (BASE_DIR / "src").exists() else []
-        for p in run_scripts:
-            steps.append(p)
+        steps.extend(run_scripts)
         for rel in ["src/risk_contribution.py", "src/build_report.py"]:
             p = BASE_DIR / rel
             if p.exists() and p not in steps:
@@ -218,22 +203,28 @@ def discover_pipeline_steps() -> List[Path]:
     return steps
 
 
-def resolve_report_path(primary: Path, fallback: Path) -> Optional[Path]:
-    if primary.exists():
-        return primary
-    if fallback.exists():
-        return fallback
+def resolve_report_path() -> Optional[Path]:
+    for p in REPORT_CANDIDATES:
+        if p.exists():
+            return p
     return None
 
 
+def sync_report_aliases() -> None:
+    """
+    Make report loading stable:
+    - If outputs/report.md exists, copy to outputs/REPORT.md so both names work.
+    """
+    src = OUTPUT_DIR / "report.md"
+    dst = OUTPUT_DIR / "REPORT.md"
+    try:
+        if src.exists():
+            dst.write_text(src.read_text(encoding="utf-8", errors="replace"), encoding="utf-8")
+    except Exception:
+        pass
+
+
 def render_report_md_with_images(report_path: Path) -> None:
-    """
-    Render markdown and inline images.
-    Supports image links like:
-      ![alt](outputs/figures/xxx.png)
-      ![alt](figures/xxx.png)
-      ![alt](xxx.png)
-    """
     text = report_path.read_text(encoding="utf-8", errors="replace")
     lines = text.splitlines()
 
@@ -253,9 +244,8 @@ def render_report_md_with_images(report_path: Path) -> None:
             buf.append(line)
             continue
 
-        # markdown before image on same line
         before = line[: m.start()].strip()
-        after = line[m.end() :].strip()
+        after = line[m.end():].strip()
 
         if before:
             buf.append(before)
@@ -265,7 +255,6 @@ def render_report_md_with_images(report_path: Path) -> None:
         alt = m.group(1)
         raw_path = m.group(2).strip().strip('"').strip("'")
 
-        # resolve image path
         img_candidates = [
             (report_path.parent / raw_path),
             (BASE_DIR / raw_path),
@@ -322,7 +311,6 @@ with st.sidebar.expander("⚖️ Portfolio Weights (edit)", expanded=True):
         key="weights_editor",
     )
 
-    # compute sum
     try:
         edited_norm = normalize_weights_df(pd.DataFrame(edited))
         s = float(edited_norm["weight"].sum())
@@ -364,8 +352,10 @@ with st.sidebar.expander("⚖️ Portfolio Weights (edit)", expanded=True):
                     )
 
                 if ok:
+                    # Ensure report aliases exist (fix report page showing stale file)
+                    sync_report_aliases()
+
                     st.success("Pipeline finished successfully.")
-                    # HARD refresh: clear caches and rerun so tables/figures reflect new outputs
                     st.cache_data.clear()
                     st.cache_resource.clear()
                     st.rerun()
@@ -404,13 +394,19 @@ if page == "Overview":
 
 elif page == "Report":
     st.header("🧾 Report")
-    report_file = resolve_report_path(REPORT_MD_PRIMARY, REPORT_MD_FALLBACK)
+
+    # keep alias in sync even if user didn't rerun pipeline in this session
+    sync_report_aliases()
+
+    report_file = resolve_report_path()
 
     if report_file is None:
-        st.warning(f"Missing report file. Looked for:\n- {REPORT_MD_PRIMARY}\n- {REPORT_MD_FALLBACK}")
+        st.warning(
+            "Missing report file. Looked for:\n"
+            + "\n".join([f"- {p}" for p in REPORT_CANDIDATES])
+        )
     else:
         st.caption(f"Updated: {file_mtime(report_file)}   |   Path: {report_file}")
-        # Render markdown + inline images
         render_report_md_with_images(report_file)
 
         st.divider()

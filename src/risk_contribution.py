@@ -65,8 +65,8 @@ def main():
     Sigma = np.cov(R.values, rowvar=False, ddof=1)
 
     # portfolio vol (daily)
-    port_var = float(w.T @ Sigma @ w)
-    port_vol = np.sqrt(port_var)
+    port_var = (w.T @ Sigma @ w).item()
+    port_vol = float(np.sqrt(port_var))
 
     # marginal contribution to vol: (Sigma w)_i / port_vol
     mrc = (Sigma @ w) / port_vol  # shape (n,1)
