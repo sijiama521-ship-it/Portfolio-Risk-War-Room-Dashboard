@@ -29,7 +29,7 @@ A lightweight **Streamlit** dashboard for monitoring portfolio risk and performa
   - Adjust weights from the sidebar
   - Normalize to sum to 1
   - Save weights to `data/weights.csv`
-  - (Optional) regenerate outputs locally
+  - regenerate outputs locally
 
 ---
 
