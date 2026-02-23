@@ -295,7 +295,7 @@ page = st.sidebar.radio(" ", ["Overview", "Report", "Tables", "Figures"], index=
 
 st.sidebar.header("Controls")
 
-if st.sidebar.button("🧹 Clear cache + reload"):
+if st.sidebar.button("Clear cache + reload"):
     st.cache_data.clear()
     st.cache_resource.clear()
     st.rerun()
@@ -304,7 +304,7 @@ if st.sidebar.button("🧹 Clear cache + reload"):
 # =========================
 # Portfolio Weights Editor
 # =========================
-with st.sidebar.expander("⚖️ Portfolio Weights (edit)", expanded=True):
+with st.sidebar.expander("Portfolio Weights (edit)", expanded=True):
     try:
         weights_df = load_weights(WEIGHTS_PATH)
     except Exception as e:
@@ -334,14 +334,14 @@ with st.sidebar.expander("⚖️ Portfolio Weights (edit)", expanded=True):
 
     colA, colB = st.columns(2)
 
-    if colA.button("💾 Save weights.csv", use_container_width=True):
+    if colA.button("Save weights.csv", use_container_width=True):
         try:
             save_weights_for_pipeline(edited_norm, WEIGHTS_PATH)
             st.success("Saved data/weights.csv (as asset,weight for pipeline compatibility).")
         except Exception as e:
             st.error(f"Save failed: {e}")
 
-    if colB.button("🚀 Save + Rerun pipeline", use_container_width=True):
+    if colB.button("Save + Rerun pipeline", use_container_width=True):
         try:
             save_weights_for_pipeline(edited_norm, WEIGHTS_PATH)
             st.info("Saved weights.csv — running pipeline...")
@@ -378,14 +378,14 @@ with st.sidebar.expander("⚖️ Portfolio Weights (edit)", expanded=True):
 # =========================
 # Main Pages
 # =========================
-st.title("📊 Portfolio Risk War Room Dashboard")
+st.title("Portfolio Risk War Room Dashboard")
 st.caption("A lightweight dashboard to view risk metrics, VaR models, backtests, stress scenarios, and risk contribution outputs.")
 
 if page == "Overview":
     updated = latest_mtime_under(OUTPUT_DIR)
     st.info(f"Last Updated (outputs): {updated or 'N/A'}")
 
-    with st.expander("📦 Output Inventory (click to expand)", expanded=True):
+    with st.expander("Output Inventory (click to expand)", expanded=True):
         figs, tables = list_inventory(FIG_DIR, TABLE_DIR)
         c1, c2 = st.columns(2)
         with c1:
@@ -403,7 +403,7 @@ if page == "Overview":
     st.write(f"- outputs last modified: `{updated or 'N/A'}`")
 
 elif page == "Report":
-    st.header("🧾 Report")
+    st.header("Report")
     report_file = resolve_report_path(REPORT_MD_PRIMARY, REPORT_MD_FALLBACK)
 
     if report_file is None:
@@ -423,7 +423,7 @@ elif page == "Report":
         )
 
 elif page == "Tables":
-    st.header("📋 Tables")
+    st.header("Tables")
     if not TABLE_DIR.exists():
         st.warning("outputs/tables not found.")
     else:
@@ -438,7 +438,7 @@ elif page == "Tables":
             st.dataframe(df, use_container_width=True)
 
 elif page == "Figures":
-    st.header("🖼️ Figures")
+    st.header("Figures")
     if not FIG_DIR.exists():
         st.warning("outputs/figures not found.")
     else:
