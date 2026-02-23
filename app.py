@@ -34,7 +34,6 @@ REPORT_MD_FALLBACK = BASE_DIR / "REPORT.md"
 # =========================
 st.set_page_config(
     page_title="Portfolio Risk War Room Dashboard",
-    page_icon="📊",
     layout="wide",
 )
 
